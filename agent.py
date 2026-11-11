@@ -1,6 +1,7 @@
 """Bài tập chính: agent loop tự viết, không dùng framework."""
 
 import json
+import re
 
 from status_tools import SCHEMAS
 
@@ -16,6 +17,25 @@ def _result(status, answer, trace, usage, error=None):
     if error:
         out['error'] = error
     return out
+
+
+URL_RE = re.compile(r'https?://[^\s)\]<>"]+')
+
+
+def _source_problem(answer, observed, seen_ids):
+    """'invented': link incident mà tool chưa từng trả về; 'missing': thiếu URL đã quan sát."""
+    urls = [u.rstrip('.,;') for u in URL_RE.findall(answer)]
+    invented = []
+    for url in urls:
+        if '/incidents/' in url:
+            incident_id = url.split('/incidents/')[-1].split('?')[0].strip('/')
+            if incident_id and incident_id not in seen_ids:
+                invented.append(url)
+    if invented:
+        return 'invented', invented
+    if observed and not any(url in urls for url in observed):
+        return 'missing', observed
+    return None, []
 
 
 def _execute(tools, call):
@@ -35,6 +55,7 @@ def run_agent(question, provider, tools, max_steps=6):
     messages = [{'role': 'system', 'content': SYSTEM_PROMPT},
                 {'role': 'user', 'content': question}]
     trace, usage, answer = [], [], ''
+    observed, seen_ids = [], set()
     for step in range(1, max_steps + 1):
         try:
             reply = provider.complete(messages, SCHEMAS)
@@ -52,12 +73,31 @@ def run_agent(question, provider, tools, max_steps=6):
         if finish == 'length':  # output bị cắt thì không bao giờ là câu trả lời hoàn chỉnh
             return _result('error', answer, trace, usage, 'Model bị cắt output: finish=length')
         if not calls:
-            if finish == 'stop':
+            if finish != 'stop':
+                return _result('error', answer, trace, usage, f'Model dừng bất thường: finish={finish}')
+            problem, urls = _source_problem(answer, observed, seen_ids)
+            if problem is None:
                 return _result('completed', answer, trace, usage)
-            return _result('error', answer, trace, usage, f'Model dừng bất thường: finish={finish}')
+            # Không dẫn nguồn quan sát được: cho model sửa trong budget còn lại.
+            trace.append({'event': 'validation_missing_source', 'step': step,
+                          'reason': problem, 'urls': urls})
+            if step == max_steps:
+                return _result('max_steps', answer, trace, usage)
+            messages.append({'role': 'user', 'content':
+                             f'Kiểm tra nguồn không đạt ({problem}): {", ".join(urls)}. '
+                             'Chỉ dùng URL lấy từ tool result, không tự dựng link. '
+                             'Trả lời lại và nêu rõ phần không kiểm chứng được.'})
+            continue
         # Trả kết quả cho MỌI call trước khi gọi model lượt tiếp.
         for call in calls:
             result = _execute(tools, call)
+            if isinstance(result, dict):
+                if result.get('ok') and result.get('url'):
+                    observed.append(result['url'])
+                if result.get('id'):
+                    seen_ids.add(result['id'])
+                for inc in result.get('incidents') or []:
+                    seen_ids.add(inc.get('id'))
             trace.append({'event': 'tool', 'step': step, 'name': call['name'],
                           'arguments': call['arguments'], 'result': result})
             messages.append({'role': 'tool', 'tool_call_id': call['id'],
