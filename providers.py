@@ -1,8 +1,25 @@
 """Bốn provider cùng một interface. Không chứa agent loop."""
 import json
 import os
+from pathlib import Path
 import urllib.error
 import urllib.request
+
+
+def _load_env():
+    """Đọc .env cạnh file này; biến đã có trong shell thì giữ nguyên."""
+    try:
+        lines = Path(__file__).with_name('.env').read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return
+    for line in lines:
+        if not line.strip() or line.lstrip().startswith('#') or '=' not in line:
+            continue
+        key, value = line.split('=', 1)
+        os.environ.setdefault(key.strip().removeprefix('export ').strip(), value.strip().strip('"\''))
+
+
+_load_env()
 
 CONFIG = {
     'openai': ('OPENAI_API_KEY', 'https://api.openai.com/v1/chat/completions'),
@@ -47,6 +64,9 @@ class Provider:
         payload = {'model': self.model, 'messages': messages}
         if schemas:
             payload['tools'] = schemas
+        # gpt-6-luna: Chat Completions chỉ cho gọi tools khi reasoning_effort = none.
+        if os.getenv('REASONING_EFFORT'):
+            payload['reasoning_effort'] = os.getenv('REASONING_EFFORT')
         data = post_json(self.url, {'Authorization': f'Bearer {self.key}'}, payload)
         choice = data['choices'][0]
         message = choice['message']
