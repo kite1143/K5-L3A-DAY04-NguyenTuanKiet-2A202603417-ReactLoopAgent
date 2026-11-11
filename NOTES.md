@@ -41,7 +41,7 @@ Rồi câu trả lời cuối chứa `https://www.cloudflarestatus.com/incidents
   - `seen_ids`: mọi incident ID mà tool result đã trả về (từ `get_incident_details` và danh sách `incidents` của `get_status`).
   - `_source_problem(answer, observed, seen_ids)` trả `invented` nếu câu trả lời dẫn link `/incidents/<id>` với id **chưa từng** xuất hiện trong tool result; trả `missing` nếu có URL đã quan sát mà câu trả lời không dẫn URL nào.
   - Khi có vấn đề: ghi trace `{'event': 'validation_missing_source', 'step': n, 'reason': ..., 'urls': ...}`, gửi message yêu cầu model sửa, và nếu đã hết `max_steps` thì trả `max_steps` thay vì `completed`.
-- **Vì sao chọn thay đổi này:** H3 là lỗi rõ nhất trong 7 case dưới 100 và có thể chặn bằng code thay vì bằng lời dặn trong prompt. Kiểm tra offline xác nhận cổng hoạt động đúng: với một response giả chứa link bịa, trace có `validation_missing_source (invented)` và câu trả lời cuối không còn link đó; `tests/test_validation.py` (3 test) chuyển từ fail sang pass, toàn bộ 37 test offline pass.
+- **Vì sao chọn thay đổi này:** H3 là lỗi rõ nhất trong 12 case chưa đạt 100 điểm và có thể chặn bằng code thay vì bằng lời dặn trong prompt. Kiểm tra offline xác nhận cổng hoạt động đúng: với một response giả chứa link bịa, trace có `validation_missing_source (invented)` và câu trả lời cuối không còn link đó; `tests/test_validation.py` (3 test) chuyển từ fail sang pass, toàn bộ 37 test offline pass.
 - **Không sửa** `fixtures/`, `evals/cases.json`, `evals/scenarios.py`, `evals/grading.py`, `RUBRIC.md`.
 
 ## 4. So sánh hai lần chạy
