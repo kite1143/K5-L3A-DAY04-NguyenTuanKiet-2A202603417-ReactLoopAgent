@@ -48,17 +48,37 @@ Rồi câu trả lời cuối chứa `https://www.cloudflarestatus.com/incidents
 
 | Chỉ số | `eval_before.json` | `eval_after.json` |
 |---|---|---|
-| Điểm tổng | 97.32 | (điền sau khi chạy) |
-| Điểm case đã chọn (H3) | 93 | 99 (chạy riêng `--case H3`) |
-| Số model calls (H3) | 3 | 3 |
-| Token, chi phí nếu có (H3) | 1.833 token (1.582 prompt / 251 completion) | 2.117 token (1.907 / 210) |
+| Điểm tổng | **97.32** / 22 case | **95.55** / 22 case |
+| Điểm case đã chọn (H3) | 93 | **99** |
+| Số model calls (toàn bộ 22 case) | 61 | 62 |
+| Token agent (prompt / completion) | 65.004 (56.923 / 8.081) | 68.518 (60.353 / 8.165) |
+| Token judge | — | 45.602 |
+| Chi phí ước tính (Luna $0,10 / $0,50 mỗi 1M) | ≈ $0,010 | ≈ $0,013 |
 
-- Lỗi đã giải quyết: câu trả lời H3 không còn link incident tự dựng; nếu model tái phạm, cổng chặn trước khi báo `completed` thay vì để lọt.
-- Lỗi còn lại hoặc mới xuất hiện: hai lần chạy H3 sau khi sửa **không** kích hoạt cổng, tức model không tạo link bịa nữa — như vậy điểm 93 → 99 **không thể quy kết hoàn toàn** cho cổng kiểm tra nguồn, mà một phần do model dao động giữa các lần chạy. Các lỗi kiểu "khẳng định vượt quá bằng chứng" ở E5, A1, H5, H1, A8 không được sửa bởi thay đổi này vì chúng không phải lỗi nguồn.
+Cấu hình hai lần giống nhau (`config` bằng nhau: `openai / gpt-6-luna`, judge `openai / gpt-6-luna`, `max_steps 8`, dataset `core`). Cả 22 case đều `scored`, không có `unscored`, không case nào `max_steps` hay `error`.
+
+| Case | Before | After | | Case | Before | After |
+|---|---:|---:|---|---|---:|---:|
+| H3 (đã chọn) | 93 | 99 ↑ | | H4 | 100 | 50 ↓ |
+| E5 | 85 | 91 ↑ | | H5 | 94 | 90 ↓ |
+| A1 | 93 | 97 ↑ | | A6 | 95 | 93 ↓ |
+| A5 | 96 | 99 ↑ | | H6 | 100 | 96 ↓ |
+| A3 | 98 | 99 ↑ | | H8 | 99 | 97 ↓ |
+| A8 | 96 | 98 ↑ | | E4 | 100 | 99 ↓ |
+| H7 | 98 | 99 ↑ | | H2, E1, E2, E6, A2, A4, A7 | 100 | 100 |
+| E3 | 99 | 100 ↑ | | H1 | 95 | 95 |
+
+- **Lỗi đã giải quyết:** H3 không còn link incident tự dựng (99 điểm); E5 và A1 cũng tăng nhờ các khẳng định thận trọng hơn.
+- **Lỗi còn lại hoặc mới xuất hiện:**
+  - **H4 tụt 100 → 50** vì vi phạm mechanical `forbid_all_tools`: model gọi `get_status` cho cả GitHub và Cloudflare dù người dùng yêu cầu *"đừng kiểm tra trạng thái"*. Đây là lỗi **prompt/model** (model bỏ qua chỉ dẫn phủ định), không liên quan đến cổng nguồn.
+  - H5, A6, H6, H8, E4 giảm 1–4 điểm do diễn đạt chi tiết thời gian/nguyên nhân — cùng nhóm lỗi "khẳng định vượt bằng chứng" như trước.
+- **Phát hiện quan trọng:** trong cả 22 case của `eval_after.json`, **cổng kiểm tra nguồn không kích hoạt lần nào** (`validation_missing_source` = 0). Vì vậy chênh lệch 97.32 → 95.55 **không thể quy cho thay đổi trong `agent.py`**; đó là dao động của model giữa hai lần chạy, cộng thêm một lỗi prompt ở H4. Bằng chứng thay đổi hoạt động đúng là test tất định: `tests/test_validation.py` (3 test) pass và kịch bản FakeProvider cho thấy link bịa bị chặn ở step 2 rồi được sửa.
+
 
 ## 5. Giới hạn
 
 - **Judge chỉ là ước lượng:** `judge_model` trùng `model` (`gpt-6-luna`), nên model tự chấm bài mình; điểm có thể rộng tay hơn thực tế. Điểm 97.32 và 99 không phải bằng chứng "agent đúng gần hết" — phải đọc `grade.reason` và trace.
 - **Snapshot cố định:** toàn bộ kết luận gắn với `captured_at = 2026-11-09 03:50:47 UTC`; chạy `--mode live` sẽ ra số khác và không so sánh được.
-- **Một lần chạy mỗi phiên bản:** model sinh câu trả lời khác nhau giữa các lần (H3 là ví dụ: 93 điểm lần đầu, hai lần sau 99), nên chênh lệch điểm chưa chứng minh được cải tiến — cần nhiều lần chạy mới nói được về độ ổn định.
-- **Cổng nguồn rất hẹp:** chỉ kiểm tra URL incident có từng xuất hiện trong tool result và có hiện diện trong câu trả lời. Nó **không** kiểm tra URL đó có thật sự chứng minh từng khẳng định, không chặn câu trả lời thiếu nguồn cho các claim khác, và không phát hiện link `stspg.io` giả nếu id tình cờ trùng.
+- **Một lần chạy mỗi phiên bản:** biến động giữa hai lần là đáng kể. H3 chạy lại 3 lần cho 93 / 99 / 99; H4 không liên quan gì đến thay đổi nhưng tụt 100 → 50 chỉ vì model lần này gọi tool dù bị yêu cầu không gọi. Vì vậy **không thể** nói "cải tiến làm điểm tăng/giảm"; muốn kết luận phải chạy lặp nhiều lần và so trung bình.
+- **Cổng nguồn rất hẹp:** chỉ kiểm tra URL incident có từng xuất hiện trong tool result và có hiện diện trong câu trả lời. Nó **không** kiểm tra URL đó có thật sự chứng minh từng khẳng định, không chặn câu trả lời thiếu nguồn cho các claim khác, và không phát hiện link `stspg.io` giả nếu id tình cờ trùng. Trong `eval_after.json` cổng không kích hoạt lần nào, nên hiệu quả của nó trên bộ eval này chưa được chứng minh — chỉ được chứng minh bằng test tất định.
+- **Không sửa được nhóm lỗi chính còn lại:** "khẳng định vượt quá bằng chứng" (E5, A1, H5, A6, H6, H8) nằm ở khâu diễn giải của model, không phải ở khâu nguồn; muốn sửa phải đổi prompt hoặc thêm kiểm tra ngữ nghĩa, cả hai đều nằm ngoài phạm vi một thay đổi của bài này.
