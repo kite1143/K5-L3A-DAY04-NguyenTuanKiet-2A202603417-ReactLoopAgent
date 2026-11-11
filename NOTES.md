@@ -68,7 +68,7 @@ Cấu hình hai lần giống nhau (`config` bằng nhau: `openai / gpt-6-luna`,
 | H7 | 98 | 99 ↑ | | H2, E1, E2, E6, A2, A4, A7 | 100 | 100 |
 | E3 | 99 | 100 ↑ | | H1 | 95 | 95 |
 
-- **Lỗi đã giải quyết:** H3 không còn link incident tự dựng (99 điểm); E5 và A1 cũng tăng nhờ các khẳng định thận trọng hơn.
+- **Lỗi đã giải quyết:** H3 không còn link incident tự dựng; E5 và A1 cũng tăng nhờ các khẳng định thận trọng hơn.
 - **Lỗi còn lại hoặc mới xuất hiện:**
   - **H4 tụt 100 → 50** vì vi phạm mechanical `forbid_all_tools`: model gọi `get_status` cho cả GitHub và Cloudflare dù người dùng yêu cầu *"đừng kiểm tra trạng thái"*. Đây là lỗi **prompt/model** (model bỏ qua chỉ dẫn phủ định), không liên quan đến cổng nguồn.
   - H5, A6, H6, H8, E4 giảm 1–4 điểm do diễn đạt chi tiết thời gian/nguyên nhân — cùng nhóm lỗi "khẳng định vượt bằng chứng" như trước.
